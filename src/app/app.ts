@@ -1,5 +1,6 @@
-import { Component, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
+import { MarketService } from './market/market.service';
 
 @Component({
   imports: [RouterOutlet],
@@ -9,4 +10,5 @@ import { RouterOutlet } from '@angular/router';
 })
 export class App {
   protected readonly title = signal('realtime-dashboard');
+  protected readonly market = inject(MarketService);
 }
