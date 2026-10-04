@@ -1,0 +1,19 @@
+:host {
+  display: block;
+  padding: 24px;
+}
+form {
+  display: grid;
+  gap: 20px;
+  max-width: 400px;
+}
+.field {
+  display: grid;
+  gap: 6px;
+}
+input, button {
+  padding: 10px 12px;
+  font: inherit;
+}
+small { color: #555; }
+.error, [role='alert'] { color: #b91c1c; }

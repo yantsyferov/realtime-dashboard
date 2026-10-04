@@ -1,0 +1,61 @@
+<h1>MarketService dashboard</h1>
+
+@if (market.state$ | async; as state) {
+  <div class="controls">
+    <span>Status: {{ state.status }}</span>
+    <button type="button" [disabled]="state.status !== 'running'" (click)="market.pause()">
+      Pause
+    </button>
+    <button type="button" [disabled]="state.status !== 'paused'" (click)="market.resume()">
+      Resume
+    </button>
+  </div>
+
+  @if (state.error; as error) {
+    <p class="error" role="alert">{{ error }}</p>
+  }
+
+  <div class="table-container">
+    <table>
+      <caption>Simulated market data — volume and VWAP since the run started</caption>
+      <thead>
+        <tr>
+          <th scope="col">Instrument</th>
+          <th scope="col">Last price</th>
+          <th scope="col">Spread</th>
+          <th scope="col">Volume</th>
+          <th scope="col">VWAP</th>
+          <th scope="col">Imbalance</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of state.rows; track row.instrumentId) {
+          <tr>
+            <th scope="row">{{ instrumentSymbol(row.instrumentId) }}</th>
+            <td>
+              @if (row.lastPriceCents !== null) {
+                {{ row.lastPriceCents / 100 | currency: 'USD' }}
+              } @else { — }
+            </td>
+            <td>
+              @if (row.spreadCents !== null) {
+                {{ row.spreadCents / 100 | currency: 'USD' }}
+              } @else { — }
+            </td>
+            <td>{{ row.volume | number: '1.0-0' }}</td>
+            <td>
+              @if (row.vwapCents !== null) {
+                {{ row.vwapCents / 100 | currency: 'USD' }}
+              } @else { — }
+            </td>
+            <td>
+              @if (row.imbalance !== null) {
+                {{ row.imbalance | number: '1.2-2' }}
+              } @else { — }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+}

@@ -1,0 +1,39 @@
+:host {
+  display: block;
+  padding: 24px;
+}
+.controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+button {
+  padding: 8px 16px;
+  cursor: pointer;
+  &:disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
+}
+.table-container { overflow-x: auto; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+caption {
+  padding-bottom: 12px;
+  text-align: left;
+  color: #555;
+}
+th, td {
+  padding: 12px 16px;
+  border-bottom: 1px solid #ddd;
+  text-align: right;
+  white-space: nowrap;
+}
+th:first-child { text-align: left; }
+thead { background: #f3f4f6; }
+.error { color: #b91c1c; }
