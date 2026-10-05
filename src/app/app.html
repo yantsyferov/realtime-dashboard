@@ -1,7 +1,27 @@
-<nav>
-  <a routerLink="/">Dashboard</a>
-  |
-  <a routerLink="/settings">Settings</a>
-</nav>
+<header class="app-header">
+  <div class="brand">
+    <span class="brand-mark">◆</span>
+    <span class="brand-name">QUANT<span class="brand-accent">DESK</span></span>
+    <span class="brand-tag">realtime</span>
+  </div>
 
-<router-outlet />
+  <nav class="app-nav">
+    <a routerLink="/" routerLinkActive="is-active" [routerLinkActiveOptions]="{ exact: true }">
+      Markets
+    </a>
+    <a routerLink="/settings" routerLinkActive="is-active">
+      Settings
+    </a>
+  </nav>
+
+  @if (market.state$ | async; as state) {
+    <div class="header-status">
+      <span class="live-dot" [attr.data-status]="state.status"></span>
+      <span class="status-label">{{ state.status }}</span>
+    </div>
+  }
+</header>
+
+<main class="app-main">
+  <router-outlet />
+</main>

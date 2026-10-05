@@ -1,61 +1,112 @@
-<h1>MarketService dashboard</h1>
-
 @if (market.state$ | async; as state) {
-  <div class="controls">
-    <span>Status: {{ state.status }}</span>
-    <button type="button" [disabled]="state.status !== 'running'" (click)="market.pause()">
-      Pause
-    </button>
-    <button type="button" [disabled]="state.status !== 'paused'" (click)="market.resume()">
-      Resume
-    </button>
-  </div>
+  <section class="page">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">Market overview</h1>
+        <p class="page-sub">
+          Live simulated order flow — volume and VWAP since the current run started.
+        </p>
+      </div>
 
-  @if (state.error; as error) {
-    <p class="error" role="alert">{{ error }}</p>
-  }
+      <div class="controls">
+        <span class="status-pill" [attr.data-status]="state.status">
+          <span class="dot"></span>
+          {{ state.status }}
+        </span>
+        <button
+          type="button"
+          class="btn btn--ghost"
+          [disabled]="state.status !== 'running'"
+          (click)="market.pause()"
+        >
+          Pause
+        </button>
+        <button
+          type="button"
+          class="btn btn--primary"
+          [disabled]="state.status !== 'paused'"
+          (click)="market.resume()"
+        >
+          Resume
+        </button>
+      </div>
+    </div>
 
-  <div class="table-container">
-    <table>
-      <caption>Simulated market data — volume and VWAP since the run started</caption>
-      <thead>
-        <tr>
-          <th scope="col">Instrument</th>
-          <th scope="col">Last price</th>
-          <th scope="col">Spread</th>
-          <th scope="col">Volume</th>
-          <th scope="col">VWAP</th>
-          <th scope="col">Imbalance</th>
-        </tr>
-      </thead>
-      <tbody>
-        @for (row of state.rows; track row.instrumentId) {
-          <tr>
-            <th scope="row">{{ instrumentSymbol(row.instrumentId) }}</th>
-            <td>
-              @if (row.lastPriceCents !== null) {
-                {{ row.lastPriceCents / 100 | currency: 'USD' }}
-              } @else { — }
-            </td>
-            <td>
-              @if (row.spreadCents !== null) {
-                {{ row.spreadCents / 100 | currency: 'USD' }}
-              } @else { — }
-            </td>
-            <td>{{ row.volume | number: '1.0-0' }}</td>
-            <td>
-              @if (row.vwapCents !== null) {
-                {{ row.vwapCents / 100 | currency: 'USD' }}
-              } @else { — }
-            </td>
-            <td>
-              @if (row.imbalance !== null) {
-                {{ row.imbalance | number: '1.2-2' }}
-              } @else { — }
-            </td>
-          </tr>
-        }
-      </tbody>
-    </table>
-  </div>
+    @if (state.error; as error) {
+      <div class="alert" role="alert">
+        <span class="alert-mark">!</span>
+        <span>{{ error }}</span>
+      </div>
+    }
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title">Instruments</span>
+        <span class="panel-meta">{{ state.rows.length }} tracked</span>
+      </div>
+
+      <div class="table-wrap">
+        <table class="market-table">
+          <thead>
+            <tr>
+              <th scope="col" class="col-sym">Instrument</th>
+              <th scope="col" class="col-num">Last price</th>
+              <th scope="col" class="col-num">Spread</th>
+              <th scope="col" class="col-num">Volume</th>
+              <th scope="col" class="col-num">VWAP</th>
+              <th scope="col" class="col-num">Imbalance</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of state.rows; track row.instrumentId) {
+              <tr>
+                <th scope="row" class="col-sym">
+                  <span class="sym-badge">{{ instrumentSymbol(row.instrumentId).slice(0, 1) }}</span>
+                  <span class="sym-name">{{ instrumentSymbol(row.instrumentId) }}</span>
+                </th>
+                <td class="col-num">
+                  @if (row.lastPriceCents !== null) {
+                    <span class="num">{{ row.lastPriceCents / 100 | currency: 'USD' }}</span>
+                  } @else {
+                    <span class="num num--muted">—</span>
+                  }
+                </td>
+                <td class="col-num">
+                  @if (row.spreadCents !== null) {
+                    <span class="num num--muted">{{ row.spreadCents / 100 | currency: 'USD' }}</span>
+                  } @else {
+                    <span class="num num--muted">—</span>
+                  }
+                </td>
+                <td class="col-num">
+                  <span class="num">{{ row.volume | number: '1.0-0' }}</span>
+                </td>
+                <td class="col-num">
+                  @if (row.vwapCents !== null) {
+                    <span class="num">{{ row.vwapCents / 100 | currency: 'USD' }}</span>
+                  } @else {
+                    <span class="num num--muted">—</span>
+                  }
+                </td>
+                <td class="col-num">
+                  @if (row.imbalance !== null) {
+                    <span
+                      class="num"
+                      [class.num--up]="row.imbalance > 0"
+                      [class.num--down]="row.imbalance < 0"
+                    >
+                      {{ row.imbalance > 0 ? '▲' : row.imbalance < 0 ? '▼' : '·' }}
+                      {{ row.imbalance | number: '1.2-2' }}
+                    </span>
+                  } @else {
+                    <span class="num num--muted">—</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
 }

@@ -1,5 +1,10 @@
 import { AsyncPipe } from '@angular/common';
-import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import {
+  ChangeDetectionStrategy,
+  Component,
+  inject,
+  signal,
+} from '@angular/core';
 import {
   FormControl,
   FormGroup,
@@ -7,6 +12,7 @@ import {
   Validators,
 } from '@angular/forms';
 import type { ValidatorFn } from '@angular/forms';
+import { Router } from '@angular/router';
 import { MarketService } from '../../market/market.service';
 import { SETTINGS_FIELDS } from '../../market/producer-settings';
 
@@ -24,7 +30,9 @@ const integerValidator: ValidatorFn = control => {
 })
 export class Settings {
   protected readonly market = inject(MarketService);
+  private readonly router = inject(Router);
   protected readonly fields = SETTINGS_FIELDS;
+  protected readonly successMessage = signal<string | null>(null);
   private readonly initialSettings = this.market.currentSettings;
 
   protected readonly form = new FormGroup({
@@ -36,9 +44,13 @@ export class Settings {
   protected apply(): void {
     this.form.markAllAsTouched();
     if (this.form.invalid) return;
-    if (this.market.applySettings(this.form.getRawValue())) {
-      this.form.markAsPristine();
-    }
+    if (!this.market.applySettings(this.form.getRawValue())) return;
+
+    this.form.markAsPristine();
+    this.successMessage.set('Settings applied. Redirecting to dashboard…');
+    setTimeout(() => {
+      void this.router.navigate(['/']);
+    }, 1200);
   }
 
   private createControl(

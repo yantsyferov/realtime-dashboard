@@ -1,0 +1,130 @@
+:host {
+  display: block;
+  min-height: 100vh;
+}
+
+.app-header {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  padding: 0 24px;
+  height: 56px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border-subtle);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.brand-mark {
+  color: var(--accent);
+  font-size: 20px;
+  line-height: 1;
+}
+
+.brand-name {
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.brand-accent {
+  color: var(--accent);
+}
+
+.brand-tag {
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: var(--accent-dim);
+  border-radius: var(--radius-sm);
+}
+
+.app-nav {
+  display: flex;
+  gap: 4px;
+  flex: 1;
+
+  a {
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    border-radius: var(--radius-sm);
+    transition: color 120ms ease, background 120ms ease;
+
+    &:hover {
+      color: var(--text-primary);
+      background: var(--bg-panel-elevated);
+    }
+
+    &.is-active {
+      color: var(--accent);
+      background: var(--accent-dim);
+    }
+  }
+}
+
+.header-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px;
+  background: var(--bg-panel-elevated);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+.live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--neutral);
+
+  &[data-status='running'] {
+    background: var(--positive);
+    box-shadow: 0 0 0 0 rgba(2, 192, 118, 0.6);
+    animation: pulse 1.6s ease-out infinite;
+  }
+
+  &[data-status='paused'],
+  &[data-status='pausing'],
+  &[data-status='resuming'] {
+    background: var(--accent);
+  }
+
+  &[data-status='error'] {
+    background: var(--negative);
+  }
+}
+
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(2, 192, 118, 0.55);
+  }
+  70% {
+    box-shadow: 0 0 0 8px rgba(2, 192, 118, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(2, 192, 118, 0);
+  }
+}
+
+.app-main {
+  display: block;
+}
