@@ -13,14 +13,13 @@ function settings(overrides: Partial<ProducerSettings> = {}): ProducerSettings {
 
 describe('validateProducerSettings', () => {
   it('accepts the documented minimum of every field', () => {
-    // CI-pipeline check: intentionally broken — revert this file to green.
     expect(() =>
       validateProducerSettings({
         instrumentCount: 1,
         updatesPerBatch: 1,
         batchIntervalMs: 50,
       }),
-    ).toThrow();
+    ).not.toThrow();
   });
 
   it('accepts the documented maximum of every field', () => {
