@@ -38,7 +38,7 @@
   background: var(--bg-panel);
   border: 1px solid var(--border-subtle);
   border-radius: 999px;
-  font-family: var(--font-mono);
+  font-family: var(--font-mono), serif;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -169,7 +169,7 @@
   color: var(--text-primary);
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
-  font-family: var(--font-mono);
+  font-family: var(--font-mono), serif;
   font-size: 14px;
   outline: none;
   transition: border-color 120ms ease, box-shadow 120ms ease;
