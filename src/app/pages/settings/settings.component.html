@@ -1,0 +1,77 @@
+@if (market.state$ | async; as state) {
+  <section class="page">
+    <div class="page-head">
+      <div>
+        <h1 class="page-title">Producer settings</h1>
+        <p class="page-sub">
+          Applying new settings starts a fresh run and resets all accumulated values.
+        </p>
+      </div>
+
+      <span class="status-pill" [attr.data-status]="state.status">
+        <span class="dot"></span>
+        {{ state.status }}
+      </span>
+    </div>
+
+    @if (state.error; as error) {
+      <div class="alert" role="alert">
+        <span class="alert-mark">!</span>
+        <span>{{ error }}</span>
+      </div>
+    }
+
+    @if (successMessage(); as message) {
+      <div class="alert alert--success" role="status">
+        <span class="alert-mark alert-mark--success">✓</span>
+        <span>{{ message }}</span>
+      </div>
+    }
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title">Parameters</span>
+      </div>
+
+      <form class="settings-form" [formGroup]="form" (ngSubmit)="apply()">
+        @for (field of fields; track field.key) {
+          <div class="field">
+            <label class="field-label" [for]="field.key">{{ field.label }}</label>
+            <input
+              class="field-input"
+              [id]="field.key"
+              type="number"
+              [formControlName]="field.key"
+              [min]="field.min"
+              [max]="field.max"
+              step="1"
+              required
+              [attr.aria-describedby]="field.key + '-help'"
+            />
+            <small class="field-help" [id]="field.key + '-help'">
+              Integer, {{ field.min }}–{{ field.max }}
+            </small>
+            @if (
+              form.controls[field.key].invalid &&
+              (form.controls[field.key].touched || form.controls[field.key].dirty)
+            ) {
+              <span class="field-error">
+                Enter a whole number from {{ field.min }} to {{ field.max }}.
+              </span>
+            }
+          </div>
+        }
+
+        <div class="form-actions">
+          <button
+            type="submit"
+            class="btn btn--primary"
+            [disabled]="form.invalid || (state.status !== 'running' && state.status !== 'paused')"
+          >
+            Apply &amp; restart
+          </button>
+        </div>
+      </form>
+    </div>
+  </section>
+}
