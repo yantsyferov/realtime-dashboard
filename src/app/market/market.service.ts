@@ -42,7 +42,7 @@ export class MarketService {
 
     try {
       this.worker = new Worker(
-        new URL('../worker/market-worker-controller.ts', import.meta.url),
+        new URL('../worker/market-worker.ts', import.meta.url),
         { type: 'module' },
       );
       this.worker.onmessage = ({ data }: MessageEvent<WorkerEvent>) => {

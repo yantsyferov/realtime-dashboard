@@ -1,21 +1,58 @@
+import { interval } from 'rxjs';
 import { instantiate } from '../../../wasm-producer/build/release.js';
 import { MarketMetrics } from '../market/market-metrics';
 import { validateProducerSettings } from '../market/producer-settings';
-import { decodeBatch } from './decode-batch';import { interval } from 'rxjs';
+import { decodeBatch } from './decode-batch';
 
 import type { Subscription } from 'rxjs';
 import type { ActiveRun } from '../interfaces/active-run.interface';
 import type { ProducerSettings } from '../interfaces/producer-settings.interface';
 import type { WorkerCommand, WorkerEvent } from './worker-protocol';
+import {
+  MarketWorkerControllerDeps,
+  PostMessageFn,
+  Producer,
+  ProducerFactory
+} from '../interfaces/worker-producer.interface';
 
-type Producer = Awaited<ReturnType<typeof instantiate>>;
 const MAX_UINT32 = 0xFFFFFFFF;
 
-class MarketWorkerController {
+const defaultLoadProducer: ProducerFactory = async wasmUrl => {
+  const response = await fetch(wasmUrl);
+
+  if (!response.ok) {
+    throw new Error(`Failed to load Wasm: HTTP ${response.status}`);
+  }
+
+  const bytes = await response.arrayBuffer();
+  const module = await WebAssembly.compile(bytes);
+
+  return instantiate(module, {
+    env: {
+      abort: (
+        _message: number,
+        _fileName: number,
+        line: number,
+        column: number,
+      ): never => {
+        throw new Error(`Wasm aborted at ${line}:${column}`);
+      },
+    },
+  });
+};
+
+export class MarketWorkerController {
   private producer: Producer | null = null;
   private initializing = false;
   private activeRun: ActiveRun | null = null;
   private timerSubscription: Subscription | null = null;
+  private readonly post: PostMessageFn;
+  private readonly loadProducer: ProducerFactory;
+
+  constructor(deps: MarketWorkerControllerDeps) {
+    this.post = deps.post;
+    this.loadProducer = deps.loadProducer ?? defaultLoadProducer;
+  }
 
   handleCommand(data: WorkerCommand): void {
     if (data.type === 'init') {
@@ -72,7 +109,7 @@ class MarketWorkerController {
   }
 
   private send(event: WorkerEvent): void {
-    postMessage(event);
+    this.post(event);
   }
 
   private stopTimer(): void {
@@ -94,28 +131,7 @@ class MarketWorkerController {
     this.initializing = true;
 
     try {
-      const response = await fetch(wasmUrl);
-
-      if (!response.ok) {
-        throw new Error(`Failed to load Wasm: HTTP ${response.status}`);
-      }
-
-      const bytes = await response.arrayBuffer();
-      const module = await WebAssembly.compile(bytes);
-
-      this.producer = await instantiate(module, {
-        env: {
-          abort: (
-            _message: number,
-            _fileName: number,
-            line: number,
-            column: number,
-          ): never => {
-            throw new Error(`Wasm aborted at ${line}:${column}`);
-          },
-        },
-      });
-
+      this.producer = await this.loadProducer(wasmUrl);
       this.send({ type: 'ready' });
     } catch (error) {
       this.reportError(error, null);
@@ -214,11 +230,3 @@ class MarketWorkerController {
   }
 }
 
-const controller = new MarketWorkerController();
-
-addEventListener(
-  'message',
-  ({ data }: MessageEvent<WorkerCommand>) => {
-    controller.handleCommand(data);
-  },
-);
