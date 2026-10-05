@@ -2,7 +2,7 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "angular",
   "installCommand": "npm ci && npm --prefix wasm-producer ci",
-  "buildCommand": "npm run build && npm test -- --watch=false",
+  "buildCommand": "npm run build && npm test -- --watch=false && npm --prefix wasm-producer test",
   "outputDirectory": "dist/realtime-dashboard/browser",
   "rewrites": [
     {
