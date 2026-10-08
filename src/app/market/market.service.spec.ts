@@ -13,8 +13,14 @@ import {
 
 import type { InstrumentMetrics } from '../interfaces/instrument-metrics.interface';
 import type { MarketState } from '../interfaces/market-state.interface';
+import type { ProducerSettings } from '../interfaces/producer-settings.interface';
 import type { WorkerCommand, WorkerEvent } from '../worker/worker-protocol';
-import { MarketService } from './market.service';
+import { MarketService, SETTINGS_BROADCAST_CHANNEL } from './market.service';
+
+type SettingsBroadcastMessage =
+  | { type: 'apply-settings'; settings: ProducerSettings }
+  | { type: 'request-settings' }
+  | { type: 'current-settings'; settings: ProducerSettings };
 
 class MockWorker {
   onmessage: ((event: MessageEvent<WorkerEvent>) => void) | null = null;
@@ -38,12 +44,45 @@ class MockWorker {
   }
 }
 
+class MockBroadcastChannel {
+  readonly postMessage = vi.fn<(message: SettingsBroadcastMessage) => void>();
+  readonly close = vi.fn<() => void>();
+  onmessage: ((event: MessageEvent<SettingsBroadcastMessage>) => void) | null =
+    null;
+
+  constructor(readonly name: string) {}
+
+  emit(message: SettingsBroadcastMessage): void {
+    this.onmessage?.({
+      data: message,
+    } as MessageEvent<SettingsBroadcastMessage>);
+  }
+
+  messagesOfType<T extends SettingsBroadcastMessage['type']>(
+    type: T,
+  ): Array<Extract<SettingsBroadcastMessage, { type: T }>> {
+    return this.postMessage.mock.calls
+      .map(([message]) => message)
+      .filter(
+        (message): message is Extract<SettingsBroadcastMessage, { type: T }> =>
+          message.type === type,
+      );
+  }
+}
+
 const workers: MockWorker[] = [];
+const channels: MockBroadcastChannel[] = [];
 let originalWorker: typeof Worker;
+let originalBroadcastChannel: typeof BroadcastChannel | undefined;
 let workerCtor: MockInstance;
+let channelCtor: MockInstance;
 
 function latestWorker(): MockWorker {
   return workers[workers.length - 1]!;
+}
+
+function latestChannel(): MockBroadcastChannel {
+  return channels[channels.length - 1]!;
 }
 
 function row(instrumentId: number, overrides: Partial<InstrumentMetrics> = {}): InstrumentMetrics {
@@ -95,10 +134,26 @@ describe('MarketService', () => {
       return w as unknown as Worker;
     });
     globalThis.Worker = workerCtor as unknown as typeof Worker;
+
+    channels.length = 0;
+    originalBroadcastChannel = globalThis.BroadcastChannel;
+    channelCtor = vi.fn(function (this: unknown, name: string) {
+      const c = new MockBroadcastChannel(name);
+      channels.push(c);
+      return c as unknown as BroadcastChannel;
+    });
+    globalThis.BroadcastChannel =
+      channelCtor as unknown as typeof BroadcastChannel;
   });
 
   afterEach(() => {
     globalThis.Worker = originalWorker;
+    if (originalBroadcastChannel) {
+      globalThis.BroadcastChannel = originalBroadcastChannel;
+    } else {
+      delete (globalThis as { BroadcastChannel?: typeof BroadcastChannel })
+        .BroadcastChannel;
+    }
     TestBed.resetTestingModule();
   });
 
@@ -427,6 +482,129 @@ describe('MarketService', () => {
       });
       const state = await latestState(service);
       expect(state.rows[0]!.volume).toBe(10);
+    });
+  });
+
+  describe('settings broadcast channel', () => {
+    it('opens the broadcast channel and requests current settings on boot', () => {
+      createService();
+      expect(channelCtor).toHaveBeenCalledTimes(1);
+      expect(channelCtor).toHaveBeenCalledWith(SETTINGS_BROADCAST_CHANNEL);
+      expect(latestChannel().messagesOfType('request-settings')).toHaveLength(1);
+    });
+
+    it('does not open a channel when the worker fails to construct', async () => {
+      globalThis.Worker = vi.fn(() => {
+        throw new Error('no worker');
+      }) as unknown as typeof Worker;
+      const { service } = createService();
+      expect(channelCtor).not.toHaveBeenCalled();
+      const state = await latestState(service);
+      expect(state.status).toBe('error');
+    });
+
+    it('closes the broadcast channel when the service is destroyed', () => {
+      const { injector } = createService();
+      const channel = latestChannel();
+      injector.destroy();
+      expect(channel.close).toHaveBeenCalledTimes(1);
+    });
+
+    it('publishes apply-settings when applySettings succeeds', async () => {
+      const { service } = await bootRunning();
+      const channel = latestChannel();
+      const nextSettings = {
+        instrumentCount: 7,
+        updatesPerBatch: 250,
+        batchIntervalMs: 1000,
+      };
+      expect(service.applySettings(nextSettings)).toBe(true);
+      const applies = channel.messagesOfType('apply-settings');
+      expect(applies).toHaveLength(1);
+      expect(applies[0]!.settings).toEqual(nextSettings);
+    });
+
+    it('does not publish apply-settings when applySettings is rejected', async () => {
+      const { service } = await bootRunning();
+      const channel = latestChannel();
+      service.applySettings({
+        instrumentCount: 0,
+        updatesPerBatch: 100,
+        batchIntervalMs: 500,
+      });
+      expect(channel.messagesOfType('apply-settings')).toHaveLength(0);
+    });
+
+    it('applies apply-settings received from another tab without re-broadcasting', async () => {
+      const { service, worker } = await bootRunning();
+      const channel = latestChannel();
+      const remoteSettings = {
+        instrumentCount: 9,
+        updatesPerBatch: 400,
+        batchIntervalMs: 750,
+      };
+      channel.emit({ type: 'apply-settings', settings: remoteSettings });
+
+      const starts = worker.commandsOfType('start');
+      expect(starts).toHaveLength(2);
+      expect(starts[1]!.settings).toEqual(remoteSettings);
+      expect((await latestState(service)).settings).toEqual(remoteSettings);
+      expect(channel.messagesOfType('apply-settings')).toHaveLength(0);
+    });
+
+    it('ignores remote settings that fail validation', async () => {
+      const { service, worker } = await bootRunning();
+      const channel = latestChannel();
+      channel.emit({
+        type: 'apply-settings',
+        settings: {
+          instrumentCount: 0,
+          updatesPerBatch: 100,
+          batchIntervalMs: 500,
+        },
+      });
+      expect(worker.commandsOfType('start')).toHaveLength(1);
+      expect((await latestState(service)).error).toBeNull();
+    });
+
+    it('answers request-settings from other tabs with current-settings when active', async () => {
+      await bootRunning();
+      const channel = latestChannel();
+      channel.emit({ type: 'request-settings' });
+      const replies = channel.messagesOfType('current-settings');
+      expect(replies).toHaveLength(1);
+      expect(replies[0]!.settings).toMatchObject({
+        instrumentCount: 5,
+        updatesPerBatch: 100,
+        batchIntervalMs: 500,
+      });
+    });
+
+    it('does not reply to request-settings while still initializing', () => {
+      createService();
+      const channel = latestChannel();
+      channel.emit({ type: 'request-settings' });
+      expect(channel.messagesOfType('current-settings')).toHaveLength(0);
+    });
+
+    it('uses current-settings received before ready to start the first run', async () => {
+      const { service } = createService();
+      const channel = latestChannel();
+      const worker = latestWorker();
+      const remoteSettings = {
+        instrumentCount: 3,
+        updatesPerBatch: 50,
+        batchIntervalMs: 200,
+      };
+      channel.emit({ type: 'current-settings', settings: remoteSettings });
+      // Still initializing — no start yet.
+      expect(worker.commandsOfType('start')).toHaveLength(0);
+
+      worker.emit({ type: 'ready' });
+      const starts = worker.commandsOfType('start');
+      expect(starts).toHaveLength(1);
+      expect(starts[0]!.settings).toEqual(remoteSettings);
+      expect((await latestState(service)).settings).toEqual(remoteSettings);
     });
   });
 });

@@ -8,11 +8,20 @@ import { DEFAULT_SETTINGS } from '../worker/worker-protocol';
 import type { WorkerCommand, WorkerEvent } from '../worker/worker-protocol';
 import { validateProducerSettings } from './producer-settings';
 
+export const SETTINGS_BROADCAST_CHANNEL = 'realtime-dashboard:producer-settings';
+
+type SettingsBroadcastMessage =
+  | { type: 'apply-settings'; settings: ProducerSettings }
+  | { type: 'request-settings' }
+  | { type: 'current-settings'; settings: ProducerSettings };
+
 @Service()
 export class MarketService {
   private readonly destroyRef = inject(DestroyRef);
   private worker: Worker | null = null;
   private activeRunId = 0;
+  private channel: BroadcastChannel | null = null;
+  private pendingBroadcastSettings: ProducerSettings | null = null;
 
   private readonly stateSubject = new BehaviorSubject<MarketState>({
     rows: Array.from(
@@ -37,6 +46,8 @@ export class MarketService {
     this.destroyRef.onDestroy(() => {
       this.worker?.terminate();
       this.worker = null;
+      this.channel?.close();
+      this.channel = null;
       this.stateSubject.complete();
     });
 
@@ -60,6 +71,17 @@ export class MarketService {
       });
     } catch (error) {
       this.fail(error instanceof Error ? error.message : String(error));
+      return;
+    }
+
+    if (typeof BroadcastChannel !== 'undefined') {
+      this.channel = new BroadcastChannel(SETTINGS_BROADCAST_CHANNEL);
+      this.channel.onmessage = ({
+        data,
+      }: MessageEvent<SettingsBroadcastMessage>) => {
+        this.handleBroadcast(data);
+      };
+      this.channel.postMessage({ type: 'request-settings' });
     }
   }
 
@@ -81,7 +103,12 @@ export class MarketService {
     }
 
     this.startRun(settings);
-    return this.worker !== null;
+    if (this.worker === null) return false;
+    this.channel?.postMessage({
+      type: 'apply-settings',
+      settings: { ...settings },
+    });
+    return true;
   }
 
   pause(): void {
@@ -96,8 +123,49 @@ export class MarketService {
     this.send({ type: 'resume', runId: this.activeRunId });
   }
 
-  private startDefaultRun(): void {
+  private startInitialRun(): void {
+    if (this.pendingBroadcastSettings) {
+      const settings = this.pendingBroadcastSettings;
+      this.pendingBroadcastSettings = null;
+      this.startRun(settings);
+      return;
+    }
     this.startRun(DEFAULT_SETTINGS);
+  }
+
+  private handleBroadcast(data: SettingsBroadcastMessage): void {
+    switch (data.type) {
+      case 'apply-settings':
+      case 'current-settings':
+        this.applyRemoteSettings(data.settings);
+        return;
+      case 'request-settings': {
+        const status = this.stateSubject.value.status;
+        if (status === 'running' || status === 'paused') {
+          this.channel?.postMessage({
+            type: 'current-settings',
+            settings: { ...this.stateSubject.value.settings },
+          });
+        }
+        return;
+      }
+    }
+  }
+
+  private applyRemoteSettings(settings: ProducerSettings): void {
+    try {
+      validateProducerSettings(settings);
+    } catch {
+      return;
+    }
+    const status = this.stateSubject.value.status;
+    if (status === 'error') return;
+    if (status === 'initializing') {
+      this.pendingBroadcastSettings = { ...settings };
+      return;
+    }
+    if (this.worker === null) return;
+    this.startRun(settings);
   }
 
   private startRun(settings: Readonly<ProducerSettings>): void {
@@ -131,7 +199,7 @@ export class MarketService {
     if (!this.worker) return;
     if (event.type === 'ready') {
       if (this.stateSubject.value.status === 'initializing') {
-        this.startDefaultRun();
+        this.startInitialRun();
       }
       return;
     }
